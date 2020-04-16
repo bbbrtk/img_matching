@@ -25,17 +25,21 @@ def draw_rectangle(rect, img):
     box = cv2.boxPoints(rect)
     box = np.int0(box)
     cv2.drawContours(img,[box],0,(0,0,255), 1)
+    cv2.imshow('image', img)
+    cv2.waitKey()
 
 def draw_contours(contours, img):
     cv2.drawContours(img, contours, -1, (255,255,255), 1)
 
 def rotate(contours, img):
     rect = generate_rectangle(contours)
+    # draw_rectangle(rect, img)
     angle = rect[2]
     img = ndimage.rotate(img, angle)
     height, width, _ = img.shape
     if height > width:
         img = ndimage.rotate(img, 90)
+
     return img
 
 def print_plot(slist, name, type):
@@ -90,6 +94,9 @@ def get_top_coords(img, direction):
         switched = True
         top, bottom = switch(top, bottom)
 
+    # print_plot(top, 'TEST', 'me')
+    # print_plot(bottom, 'TEST', 'me')
+
     return top, switched
 
 def matching_pair(img):
@@ -128,12 +135,37 @@ def matching_pair(img):
 
     return top_me, top_pair
 
+def many_subtracts(s1, s2):
+    slist1 = s1.copy()
+    slist2 = s2.copy()
+    val_list = []
+    jump = 3
+
+    val_list.append(np.std(np.subtract(slist1, slist2)))
+    for i in range(jump):
+        slist1.insert(0, slist1[i+1])
+        slist2.append(slist2[-i-2])
+        val_list.append(np.std(np.subtract(slist1, slist2)))
+    # clear
+    slist1 = slist1[jump:]
+    slist2 = slist2[:-jump]
+
+    for i in range(jump):
+        slist2.insert(0, slist2[i+1])
+        slist1.append(slist1[-i-2])
+        val_list.append(np.std(np.subtract(slist1, slist2)))
+    # clear
+    slist2 = slist2[jump:]
+    slist1 = slist1[:-jump]
+
+    return val_list
+
 def squeez(slist):
     slist = list(filter(lambda a: a != 0, slist))
     slist.remove(max(slist))
     slist = np.array_split(slist, 50)
     mean_slist = []
-    for e in slist: mean_slist.append(np.mean(e))
+    for e in slist: mean_slist.append(np.mean(e)) # median?
     return mean_slist
 
 def match(imglist):
@@ -145,26 +177,24 @@ def match(imglist):
         mean_me = squeez(top_me)
         mean_pair = squeez(top_pair)
 
-        # print_plot(mean_me, i, 'me')
+        # ot(mean_me, i, 'me')
         # print_plot(mean_pair, i, 'pair')
 
         images.append(mean_me)
         pairs.append(mean_pair)
 
-    for img in images:
+    for i in range(len(images)):
         all_matches = {}
         for p in range(len(pairs)):
-            val = np.std(np.subtract(img, pairs[p]))
-            all_matches[p] = val
+            if p != i:
+                val = many_subtracts(images[i], pairs[p])
+                # print(p, val)
+                all_matches[p] = min(val)
         all_sorted = sorted(all_matches.items(), key=lambda kv: kv[1])
         sorted_dict = collections.OrderedDict(all_sorted)
         print(*list(sorted_dict.keys()))
         
     
-
-    matching_order = "1"
-    return matching_order
-
 
 def get_image(dirpath, imgname):
     path =  os.path.join(dirpath, str(imgname)+'.png')
